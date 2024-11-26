@@ -1,8 +1,9 @@
-// @ts-nocheck 
+// @ts-nocheck
 
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Button } from 'react-native';
-import { Accelerometer } from 'expo-sensors';
+import { KalmanFilter } from '@/utils/kalman-filter';
+import { DeviceMotion } from 'expo-sensors';
+import React, { useEffect, useState } from 'react';
+import { Button, StyleSheet, Text, View } from 'react-native';
 
 const MotionTracking = () => {
   const [distance, setDistance] = useState(0);
@@ -18,24 +19,38 @@ const MotionTracking = () => {
   const VELOCITY_DECAY = 0.9; // Decay factor for velocity when stationary
 
   useEffect(() => {
-    const subscription = Accelerometer.addListener(handleAccelerometerUpdate);
-    Accelerometer.setUpdateInterval(ACCEL_UPDATE_INTERVAL);
+    const subscription = DeviceMotion.addListener(handleDeviceMotionUpdate);
+    DeviceMotion.setUpdateInterval(ACCEL_UPDATE_INTERVAL);
 
     return () => subscription.remove();
   }, [lastUpdate, velocity, recentAccelerations]);
 
-  const handleAccelerometerUpdate = (accelerometerData) => {
+  const kalmanX = new KalmanFilter(0.1, 0.1, 0);
+  const kalmanY = new KalmanFilter(0.1, 0.1, 0);
+  const kalmanZ = new KalmanFilter(0.1, 0.1, 0);
+
+  const handleDeviceMotionUpdate = (deviceMotionData) => {
     const currentTime = Date.now();
     const deltaTime = lastUpdate ? (currentTime - lastUpdate) / 1000 : 0;
 
+    // Extract acceleration data from deviceMotionData
+    const { acceleration } = deviceMotionData;
+
+    // Apply Kalman filter to the accelerometer data
+    const filteredX = kalmanX.update(acceleration.x);
+    const filteredY = kalmanY.update(acceleration.y);
+    const filteredZ = kalmanZ.update(acceleration.z);
+
     const correctedAcceleration = {
-      x: accelerometerData.x * ACCEL_GRAVITY,
-      y: accelerometerData.y * ACCEL_GRAVITY,
-      z: (accelerometerData.z - 1) * ACCEL_GRAVITY,
+      x: filteredX,
+      y: filteredY,
+      z: filteredZ,
     };
 
     setRecentAccelerations((prev) => {
-      const newAccelerations = [...prev, correctedAcceleration].slice(-STATIONARY_WINDOW);
+      const newAccelerations = [...prev, correctedAcceleration].slice(
+        -STATIONARY_WINDOW
+      );
       const stationary = isDeviceStationary(newAccelerations);
       setIsMoving(!stationary);
 
@@ -60,10 +75,11 @@ const MotionTracking = () => {
   const isDeviceStationary = (accelerations) => {
     if (accelerations.length < STATIONARY_WINDOW) return true;
 
-    const avgMagnitude = accelerations.reduce((sum, acc) => {
-      const magnitude = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
-      return sum + magnitude;
-    }, 0) / accelerations.length;
+    const avgMagnitude =
+      accelerations.reduce((sum, acc) => {
+        const magnitude = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
+        return sum + magnitude;
+      }, 0) / accelerations.length;
 
     return avgMagnitude < STATIONARY_THRESHOLD;
   };
@@ -76,7 +92,11 @@ const MotionTracking = () => {
         z: prevVelocity.z + acceleration.z * deltaTime,
       };
 
-      const deltaDistance = calculateDistance(prevVelocity, newVelocity, deltaTime);
+      const deltaDistance = calculateDistance(
+        prevVelocity,
+        newVelocity,
+        deltaTime
+      );
 
       setDistance((prevDistance) => prevDistance + deltaDistance);
 
@@ -107,7 +127,9 @@ const MotionTracking = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.text}>Distance: {distance.toFixed(2)} meters</Text>
-      <Text style={styles.text}>Status: {isMoving ? 'Moving' : 'Stationary'}</Text>
+      <Text style={styles.text}>
+        Status: {isMoving ? 'Moving' : 'Stationary'}
+      </Text>
       <Button title="Reset Tracking" onPress={resetTracking} />
     </View>
   );
@@ -126,4 +148,3 @@ const styles = StyleSheet.create({
 });
 
 export default MotionTracking;
-
