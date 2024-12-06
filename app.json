@@ -15,7 +15,11 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "android.permission.HIGH_SAMPLING_RATE_SENSORS"
+      ],
+      "package": "com.esignature.indoornavigation"
     },
     "web": {
       "bundler": "metro",
@@ -36,6 +40,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "75579966-61ac-40cb-b4a8-620f07de05a8"
+      }
     }
   }
 }
